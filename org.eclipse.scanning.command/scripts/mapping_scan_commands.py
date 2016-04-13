@@ -14,6 +14,7 @@ There are also some pure functions which may be used to narrow the region of
 interest (ROI) when using grid(). They are: circ(), rect(), poly().
 """
 
+from copy import deepcopy
 from java.net import URI
 from org.eclipse.scanning.api.event.scan import ScanRequest
 from org.eclipse.dawnsci.analysis.dataset.roi import (
@@ -27,10 +28,70 @@ from org.eclipse.scanning.api.event.scan import ScanBean
 from org.eclipse.scanning.api.event.IEventService import SUBMISSION_QUEUE
 
 
+def scan_request(path=None, mon=None, det=None, _default_params={}):
+    # Beware the mutable default argument! In this case it's the simplest
+    # solution, so long as we don't modify it in the function body.
+    """Create a ScanRequest object with the given configuration.
+
+    See the mscan() docstring for usage.
+    """
+    try:
+        assert path is not None
+    except AssertionError:
+        raise ValueError('Scan request must have a scan path.')
+
+    # The effect of the following three lines is to make square brackets
+    # optional when calling this function with length-1 lists. I.e. we can do
+    # either scan([grid(...)], ...) or scan(grid(...), ...). Also _stringify
+    # the monitors so users can pass either a monitor name in quotes or a
+    # scannable object from the Jython namespace.
+    scan_paths = _listify(path)
+    monitors = map(_stringify, _listify(mon))
+    detectors = _listify(det)
+
+    (scan_path_models, _) = zip(*scan_paths)  # zip(* == unzip(
+
+    # ScanRequest expects ROIs to be specified as a map in the following
+    # (bizarre?) format:
+    roi_map = {}  # No dict comprehensions in Python 2.5!
+    for (model, rois) in scan_paths:
+        if len(rois) > 0:
+            roi_map[model.getUniqueKey()] = rois
+    # Nicer Python 2.7 version for if the Jython interpreter is ever upgraded:
+    # roi_map = {model.getUniqueKey(): rois
+    #            for (model, rois) in scan_paths if len(rois) > 0}
+
+    detector_map = dict(detectors)
+    # Equivalent to (Python 2.7) {name: model for (name, model) in detectors}.
+
+    # Instantiate a ScanRequest with any default params, plus required params.
+    return _instantiate(ScanRequest, _updated(
+                                         _default_params,
+                                         {'models': scan_path_models,
+                                          'regions': roi_map,
+                                          'monitorNames': monitors,
+                                          'detectors': detector_map}))
+
+
+def submit(request, now=False, block=False,
+           _broker_uri="tcp://localhost:61616"):
+    """Submit an existing ScanRequest to the GDA server.
+
+    See the mscan() docstring for details of `now` and `block`.
+    """
+    if now or block:
+        raise NotImplementedError()  # TODO
+    else:
+        Services.getEventService() \
+                .createSubmitter(URI(broker_uri), SUBMISSION_QUEUE) \
+                .submit(_instantiate(ScanBean, {'scanRequest': request}))
+
+
 # Grepping for 'mscan' in a GDA workspace shows up nothing, so it seems that
 # mscan is a free name.
 def mscan(path=None, mon=None, det=None, now=False, block=False,
-          broker_uri="tcp://localhost:61616"):
+          _scan_request_fn=scan_request, _submit_fn=submit,
+          _default_params={}):
     """Create a ScanRequest and submit it to the GDA server.
 
     A simple usage of this function is as follows:
@@ -67,61 +128,58 @@ def mscan(path=None, mon=None, det=None, now=False, block=False,
     >>> # Skip the queue and return once the scan is complete.
     >>> mscan(..., ..., now=True, block=True)
     """
-    submit(scan_request(path, mon, det), now, block, broker_uri)
+    submit(scan_request_fn(path, mon, det), now, block, broker_uri)
 
 
-def submit(request, now=False, block=False,
-           broker_uri="tcp://localhost:61616"):
-    """Submit an existing ScanRequest to the GDA server.
+def _customized_commands(scan_request_params,
+                         broker_uri='tcp://localhost:61616'):
+    """Make versions of ScanRequest submission functions with default fields.
 
-    See the mscan() docstring for details of `now` and `block`.
+    Suppose you wanted ScanRequests submitted by mscan() to have their
+    'beforeScript' field set to a fixed default, say '/tmp/my_script.py'. Then
+    you could do (in localStation.py or similar):
+    >>> from mapping_scan_commands import _customized_commands, ...
+    >>> scan_request, submit, mscan = _customized_commands(
+    ...     {'beforeScript', '/tmp/my_script.py'}, {})
+
+    Now the functions which create ScanRequests (scan_request and mscan) will
+    call .setBeforeScript("/tmp/my_script.py") on them before returning or
+    submitting them (where "them" = the ScanRequests).
+
+    If you don't need this functionality (i.e. the vanilla version of
+    scan_request sets all the ScanRequest fields you need) then you needn't
+    use _customized_commands; instead just do (in localStation.py or similar):
+    >>> from mapping_scan_commands import scan_request, submit, mscan, ...
+
+    It's also possible to override the default JMS broker URI here.
     """
-    if now or block:
-        raise NotImplementedError()  # TODO
-    else:
-        Services.getEventService() \
-                .createSubmitter(URI(broker_uri), SUBMISSION_QUEUE) \
-                .submit(_instantiate(ScanBean, {'scanRequest': request}))
+    # In order to get the docstrings right (so help(mscan) works, etc.), we
+    # have to manually create some wrapper functions (rather than using
+    # functools.partial, say).
+    def custom_scan_request(*args, **kwargs):
+        return scan_request(*args,
+                            **_updated(
+                                  {'_default_params': scan_request_params},
+                                  kwargs))
+    custom_scan_request.__doc__ = scan_request.__doc__
 
+    def custom_submit(*args, **kwargs):
+        return submit(*args,
+                      **_updated(
+                            {'_broker_uri': broker_uri},
+                            kwargs))
+    custom_submit.__doc__ = submit.__doc__
 
-def scan_request(path=None, mon=None, det=None):
-    """Create a ScanRequest object with the given configuration.
+    def custom_mscan(*args, **kwargs):
+        return mscan(*args,
+                     **_updated(
+                           {'_broker_uri': broker_uri,
+                            '_scan_request_fn': custom_scan_request,
+                            '_submit_fn': custom_submit},
+                           kwargs))
+    custom_mscan.__doc__ = mscan.__doc__
 
-    See the mscan() docstring for usage.
-    """
-    try:
-        assert path is not None
-    except AssertionError:
-        raise ValueError('Scan request must have a scan path.')
-
-    # The effect of the following three lines is to make square brackets
-    # optional when calling this function with length-1 lists. I.e. we can do
-    # either scan([grid(...)], ...) or scan(grid(...), ...). Also _stringify
-    # the monitors so users can pass either a monitor name in quotes or a
-    # scannable object from the Jython namespace.
-    scan_paths = _listify(path)
-    monitors = map(_stringify, _listify(mon))
-    detectors = _listify(det)
-
-    (scan_path_models, _) = zip(*scan_paths)  # zip(* == unzip(
-
-    # ScanRequest expects ROIs to be specified as a map in the following
-    # (bizarre?) format:
-    roi_map = {}  # No dict comprehensions in Python 2.5!
-    for (model, rois) in scan_paths:
-        if len(rois) > 0:
-            roi_map[model.getUniqueKey()] = rois
-    # Nicer Python 2.7 version for if the Jython interpreter is ever upgraded:
-    # roi_map = {model.getUniqueKey(): rois
-    #            for (model, rois) in scan_paths if len(rois) > 0}
-
-    detector_map = dict(detectors)
-    # Equivalent to (Python 2.7) {name: model for (name, model) in detectors}.
-
-    return _instantiate(ScanRequest, {'models': scan_path_models,
-                                      'regions': roi_map,
-                                      'monitorNames': monitors,
-                                      'detectors': detector_map})
+    return custom_scan_request, custom_submit, custom_mscan
 
 
 # Scan paths
@@ -445,6 +503,14 @@ def _instantiate(Bean, params):
 
 # Miscellaneous functions
 # -----------------------
+
+def _updated(target, updates):
+    """Pure functional dict update.
+    """
+    target_copy = deepcopy(target)
+    target_copy.update(updates)
+    return target_copy
+
 
 def _listify(sheep):  # Idempotent.
     # The argument is called "sheep" because it may be either
