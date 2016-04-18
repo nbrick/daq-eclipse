@@ -127,6 +127,35 @@ class SubmitterImpl<T extends StatusBean> extends AbstractQueueConnection<T> imp
 		submit(bean);
 		latch.await();
 	}
+
+	@Override
+	public void run(T bean) throws EventException {
+		submit(bean);
+		reorder(bean, Integer.MAX_VALUE);
+	}
+
+	@Override
+	public void blockingRun(T bean) throws EventException, InterruptedException {
+
+		final String UID = bean.getUniqueId();
+		ISubscriber<IScanListener> subscriber = eservice.createSubscriber(getUri(), STATUS_TOPIC);
+		final CountDownLatch latch = new CountDownLatch(1);
+
+		subscriber.addListener(new IScanListener() {
+			@Override public void scanEventPerformed(ScanEvent evt) {}
+			@Override
+			public void scanStateChanged(ScanEvent evt) {
+				ScanBean scanBean = evt.getBean();
+				if (scanBean.getUniqueId() == UID
+						&& scanBean.getStatus().isFinal()) {
+					latch.countDown();
+				}
+			}
+		});
+
+		run(bean);
+		latch.await();
+	}
 	
 	@Override
 	public boolean reorder(T bean, int amount) throws EventException {

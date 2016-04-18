@@ -26,16 +26,40 @@ public interface ISubmitter<T> extends IQueueConnection<T> {
 	/**
 	 * Send a submission on to the queue. Blocks until bean is
 	 * updated with "final" status.
+	 * 
 	 * @param bean
 	 * @throws EventException
 	 * @throws InterruptedException
 	 */
 	void blockingSubmit(T bean) throws EventException, InterruptedException;
+
+	/**
+	 * Place a submission on the queue and immediately move it to
+	 * the front of the queue.
+	 * 
+	 * @param bean
+	 * @throws EventException
+	 */
+	void run(T bean) throws EventException;
+
+	/**
+	 * Place a submission on the queue, immediately move it to the
+	 * front of the queue, and wait for it to be updated with
+	 * "final" status before returning.
+	 * 
+	 * @param bean
+	 * @throws EventException
+	 * @throws InterruptedException
+	 */
+	void blockingRun(T bean) throws EventException, InterruptedException;
 	
 	/**
 	 * Tries to reorder the bean in the submission queue if it is
 	 * still there. If the bean has been moved to the status set, 
 	 * it will not be moved 
+	 * 
+	 * A positive amount means "move forward in the queue" and
+	 * negative means backward.
 	 * 
 	 * A pause will automatically be done while the bean
 	 * is removed.

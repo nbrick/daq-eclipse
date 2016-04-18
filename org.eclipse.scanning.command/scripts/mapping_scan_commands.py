@@ -106,16 +106,23 @@ def submit(request, now=False, block=False,
     """
     scan_bean = _instantiate(ScanBean, {'scanRequest': request})
 
-    if now:
-        raise NotImplementedError()  # TODO: Raise priority.
-
     submitter = getEventService() \
                     .createSubmitter(URI(broker_uri), SUBMISSION_QUEUE)
 
-    if block:
-        submitter.blockingSubmit(scan_bean)
-    else:
+    if not block and not now:
         submitter.submit(scan_bean)
+
+    elif block and not now:
+        submitter.blockingSubmit(scan_bean)
+
+    elif now and not block:
+        submitter.run(scan_bean)
+
+    elif block and now:
+        submitter.blockingRun(scan_bean)
+
+    else:
+        assert False  # Programmer error.
 
 
 def scan_request(path=None, mon=None, det=None):
