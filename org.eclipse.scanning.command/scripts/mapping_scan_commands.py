@@ -51,7 +51,7 @@ from org.eclipse.scanning.api.points.models import (
 from org.eclipse.scanning.api.event.scan import (ScanBean, ScanRequest)
 from org.eclipse.scanning.api.event.IEventService import (
     SUBMISSION_QUEUE, STATUS_TOPIC)
-from org.eclipse.scanning.server.servlet.Services import (
+from org.eclipse.scanning.command.Services import (
     getEventService, getRunnableDeviceService)
 
 
@@ -460,6 +460,29 @@ def rect(origin=None, size=None, angle=0):
     return RectangularROI(xStart, yStart, width, height, angle)
 
 
+# Detectors
+# ---------
+
+def detector(name, exposure_time, params=None):
+    """Specify a detector model with the given exposure time for mscan().
+
+    Pass the result of this function with the "det" keyword argument to
+    scan_request() or mscan(). For instance:
+    >>> mscan(..., det=detector('mandelbrot', 0.1))
+    """
+    name = _stringify(name)
+    model = _fetch_model_for_detector(name)
+    model.setExposureTime(exposure_time)
+    if params != None:
+        try:
+            assert isinstance(params, dict)
+            # Py2.7: assert isinstance(params, collections.Mapping)
+        except:
+            raise ValueError("`params` must be a dict-like object.")
+        _set_bean_params(model, params)
+    return _stringify(name), model
+
+
 # Bean construction
 # -----------------
 
@@ -472,6 +495,18 @@ def _instantiate(Bean, params):
     exists, a ValueError is thrown.
     """
     bean = Bean()
+    _set_bean_params(bean, params)
+    return bean
+
+
+def _set_bean_params(bean, params):
+    """Set fields on the given bean according to the given params.
+
+    `params` is a dictionary containing attributes to call bean setters with.
+    For instance, if params contains {'length': 10}, the bean will have its
+    setLength method called with the value 10. If no such method exists, a
+    ValueError is thrown.
+    """
     setters = filter(lambda x: x.startswith('set'), dir(bean))
 
     # For each param, call one of the setters.
@@ -482,8 +517,6 @@ def _instantiate(Bean, params):
         except ValueError:
             raise ValueError(
                 "No setter for param '"+p+"' in "+Bean.__name__+".")
-
-    return bean
 
 
 def _fetch_model_for_detector(detector_name):

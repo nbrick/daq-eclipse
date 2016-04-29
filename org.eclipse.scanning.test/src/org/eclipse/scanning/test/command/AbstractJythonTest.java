@@ -26,12 +26,7 @@ public abstract class AbstractJythonTest {
 		pi.exec("import sys");
 		pi.exec("sys.path.append('../org.eclipse.scanning.command/scripts/')");
 		pi.exec("from mapping_scan_commands import *");
-		pi.exec("from mapping_scan_commands import _instantiate");
-		pi.exec("from org.eclipse.scanning.example.detector import MandelbrotModel");
 		pi.set("my_scannable", new MockScannable("fred", 10));
 		pi.set("another_scannable", new MockScannable("bill", 3));
-		pi.exec("mandelbrot = lambda t: ('mandelbrot',"
-			+	"_instantiate(MandelbrotModel,"
-			+	"{'exposureTime': t, 'name': 'mandelbrot'}))");
 	}
 }

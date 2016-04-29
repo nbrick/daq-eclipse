@@ -16,13 +16,20 @@ import org.eclipse.scanning.api.event.core.IProcessCreator;
 import org.eclipse.scanning.api.event.core.IPublisher;
 import org.eclipse.scanning.api.event.scan.ScanBean;
 import org.eclipse.scanning.api.event.status.Status;
+import org.eclipse.scanning.command.Services;
 import org.junit.Before;
 import org.junit.Test;
 
 
+/**
+ * This class tests that blocking and non-blocking calls to the
+ * submit() function of mapping_scan_commands.py work as expected.
+ *
+ * This requires that an IEventService be instantiated, which is
+ * left to the concrete subclasses.
+ */
 public abstract class AbstractSubmissionTest extends AbstractJythonTest {
 
-	protected static IEventService eservice;
 	protected IConsumer<ScanBean> consumer;
 	private String brokerUri = "vm://localhost?broker.persistent=false";
 
@@ -32,15 +39,14 @@ public abstract class AbstractSubmissionTest extends AbstractJythonTest {
 		testLog = new ArrayBlockingQueue<>(2);
 	}
 
-	// Subclasses must tell us how to set up the IEventService.
 	protected abstract void setUpEventService();
 
 	@Before
-	public void createTestEnvironment() throws EventException, URISyntaxException {
+	public void createMockScanRunner() throws Exception {
 
 		setUpEventService();
 
-		consumer = eservice.createConsumer(URI.create(brokerUri),
+		consumer = Services.getEventService().createConsumer(URI.create(brokerUri),
 				IEventService.SUBMISSION_QUEUE,
 				IEventService.STATUS_SET,
 				IEventService.STATUS_TOPIC,
@@ -73,7 +79,7 @@ public abstract class AbstractSubmissionTest extends AbstractJythonTest {
 		consumer.start();
 
 		// Put any old ScanRequest in the Python namespace.
-		pi.exec("sr = scan_request(step(my_scannable, 0, 10, 1), det=mandelbrot(0.1))");
+		pi.exec("sr = scan_request(step(my_scannable, 0, 10, 1))");
 	}
 
 	@Test

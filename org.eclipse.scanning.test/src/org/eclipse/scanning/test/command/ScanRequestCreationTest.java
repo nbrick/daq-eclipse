@@ -22,7 +22,6 @@ import org.eclipse.scanning.api.points.models.OneDStepModel;
 import org.eclipse.scanning.api.points.models.RasterModel;
 import org.eclipse.scanning.api.points.models.SinglePointModel;
 import org.eclipse.scanning.api.points.models.StepModel;
-import org.eclipse.scanning.example.detector.MandelbrotModel;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -40,7 +39,6 @@ public class ScanRequestCreationTest extends AbstractJythonTest {
 			+	"        size=(10, 9),            "
 			+	"        roi=circ((4, 6), 5)      "
 			+	"    ),                           "
-			+	"    det=mandelbrot(0.1),         "
 			+	")                                ");
 		@SuppressWarnings("unchecked")
 		ScanRequest<IROI> request = pi.get("sr", ScanRequest.class);
@@ -74,15 +72,6 @@ public class ScanRequestCreationTest extends AbstractJythonTest {
 		assertEquals(4, cregion.getCentre()[0], 1e-8);
 		assertEquals(6, cregion.getCentre()[1], 1e-8);
 		assertEquals(5, cregion.getRadius(), 1e-8);
-
-		Map<String, IDetectorModel> detectors = request.getDetectors();
-		assertTrue(detectors.keySet().contains("mandelbrot"));
-
-		Object dmodel = detectors.get("mandelbrot");
-		assertEquals(MandelbrotModel.class, dmodel.getClass());
-
-		MandelbrotModel mmodel = (MandelbrotModel) dmodel;
-		assertEquals(0.1, mmodel.getExposureTime(), 1e-8);
 	}
 
 	@Test
@@ -91,7 +80,6 @@ public class ScanRequestCreationTest extends AbstractJythonTest {
 			+	"scan_request(                      "
 			+	"    step(my_scannable, -2, 5, 0.5),"
 			+	"    mon=['x', another_scannable],  "  // Monitor two scannables.
-			+	"    det=mandelbrot(0.1),           "
 			+	")                                  ");
 		@SuppressWarnings("unchecked")
 		ScanRequest<IROI> request = pi.get("sr", ScanRequest.class);
@@ -127,7 +115,6 @@ public class ScanRequestCreationTest extends AbstractJythonTest {
 			+	"            rect((3, 4), (3, 3), 0.1)"
 			+	"        ]                            "
 			+	"    ),                               "
-			+	"    det=mandelbrot(0.1),             "
 			+	")                                    ");
 		@SuppressWarnings("unchecked")
 		ScanRequest<IROI> request = pi.get("sr", ScanRequest.class);
@@ -160,7 +147,6 @@ public class ScanRequestCreationTest extends AbstractJythonTest {
 		pi.exec("sr =                                 "
 			+	"scan_request(                        "
 			+	"    array('qty', [-3, 1, 1.5, 1e10]),"
-			+	"    det=mandelbrot(0.1),             "
 			+	")                                    ");
 		@SuppressWarnings("unchecked")
 		ScanRequest<IROI> request = pi.get("sr", ScanRequest.class);
@@ -181,7 +167,6 @@ public class ScanRequestCreationTest extends AbstractJythonTest {
 		pi.exec("sr =                                                    "
 			+	"scan_request(                                           "
 			+	"    line(origin=(0, 4), length=10, angle=0.1, count=10),"
-			+	"    det=[mandelbrot(0.1)],                              "
 			+	")                                                       ");
 		@SuppressWarnings("unchecked")
 		ScanRequest<IROI> request = pi.get("sr", ScanRequest.class);
@@ -202,7 +187,6 @@ public class ScanRequestCreationTest extends AbstractJythonTest {
 		pi.exec("sr =                                                       "
 			+	"scan_request(                                              "
 			+	"    line(origin=(-2, 1.3), length=10, angle=0.1, step=0.5),"
-			+	"    det=mandelbrot(0.1),                                   "
 			+	")                                                          ");
 		@SuppressWarnings("unchecked")
 		ScanRequest<IROI> request = pi.get("sr", ScanRequest.class);
@@ -220,7 +204,7 @@ public class ScanRequestCreationTest extends AbstractJythonTest {
 
 	@Test
 	public void testSinglePointCommand() throws Exception {
-		pi.exec("sr = scan_request(point(4, 5), det=mandelbrot(0.1))");
+		pi.exec("sr = scan_request(point(4, 5))");
 		@SuppressWarnings("unchecked")
 		ScanRequest<IROI> request = pi.get("sr", ScanRequest.class);
 
@@ -230,44 +214,6 @@ public class ScanRequestCreationTest extends AbstractJythonTest {
 		SinglePointModel spmodel = (SinglePointModel) model;
 		assertEquals(4, spmodel.getX(), 1e-8);
 		assertEquals(5, spmodel.getY(), 1e-8);
-
-		Map<String, IDetectorModel> detectors = request.getDetectors();
-		assertTrue(detectors.keySet().contains("mandelbrot"));
-
-		Object dmodel = detectors.get("mandelbrot");
-		assertEquals(MandelbrotModel.class, dmodel.getClass());
-
-		MandelbrotModel mmodel = (MandelbrotModel) dmodel;
-		assertEquals(0.1, mmodel.getExposureTime(), 1e-8);
-	}
-
-	@Test
-	public void testSquareBracketCombinations() throws Exception {
-		pi.exec("sr0 = scan_request(point(4, 5), det=mandelbrot(0.1))");
-		pi.exec("sr1 = scan_request([point(4, 5)], det=mandelbrot(0.1))");
-		pi.exec("sr2 = scan_request(point(4, 5), det=[mandelbrot(0.1)])");
-		pi.exec("sr3 = scan_request([point(4, 5)], det=[mandelbrot(0.1)])");
-
-		@SuppressWarnings("unchecked")
-		ScanRequest<IROI> request1 = pi.get("sr0", ScanRequest.class);
-		@SuppressWarnings("unchecked")
-		ScanRequest<IROI> request2 = pi.get("sr1", ScanRequest.class);
-		@SuppressWarnings("unchecked")
-		ScanRequest<IROI> request3 = pi.get("sr2", ScanRequest.class);
-		@SuppressWarnings("unchecked")
-		ScanRequest<IROI> request4 = pi.get("sr3", ScanRequest.class);
-
-		assertEquals(4, ((SinglePointModel) request1.getModels().iterator().next()).getX(), 1e-8);
-		assertEquals(0.1, ((MandelbrotModel) request1.getDetectors().get("mandelbrot")).getExposureTime(), 1e-8);
-
-		assertEquals(4, ((SinglePointModel) request2.getModels().iterator().next()).getX(), 1e-8);
-		assertEquals(0.1, ((MandelbrotModel) request2.getDetectors().get("mandelbrot")).getExposureTime(), 1e-8);
-
-		assertEquals(4, ((SinglePointModel) request3.getModels().iterator().next()).getX(), 1e-8);
-		assertEquals(0.1, ((MandelbrotModel) request3.getDetectors().get("mandelbrot")).getExposureTime(), 1e-8);
-
-		assertEquals(4, ((SinglePointModel) request4.getModels().iterator().next()).getX(), 1e-8);
-		assertEquals(0.1, ((MandelbrotModel) request4.getDetectors().get("mandelbrot")).getExposureTime(), 1e-8);
 	}
 
 	@Test
@@ -278,7 +224,6 @@ public class ScanRequestCreationTest extends AbstractJythonTest {
 			+	"        grid(axes=('x', 'y'), count=(5, 5), origin=(0, 0), size=(10, 10), snake=True),"
 			+	"        step('qty', 0, 10, 1),                                                        "
 			+	"    ],                                                                                "
-			+	"    det=mandelbrot(0.1),                                                              "
 			+	")                                                                                     ");
 		@SuppressWarnings("unchecked")
 		ScanRequest<IROI> request = pi.get("sr", ScanRequest.class);
@@ -299,7 +244,6 @@ public class ScanRequestCreationTest extends AbstractJythonTest {
 		pi.exec("sr =                                              "
 			+	"scan_request(                                     "
 			+	"    [step(my_scannable, -2, 5, 0.5), val('y', 5)],"
-			+	"    det=mandelbrot(0.1),                          "
 			+	")                                                 ");
 		@SuppressWarnings("unchecked")
 		ScanRequest<IROI> request = pi.get("sr", ScanRequest.class);
@@ -318,39 +262,37 @@ public class ScanRequestCreationTest extends AbstractJythonTest {
 	@Ignore("ScanRequest<?>.equals() doesn't allow this test to work.")
 	@Test
 	public void testArgStyleInvariance() throws Exception {
-		pi.exec("sr_full =                       "
-			+	"scan_request(                   "
-			+	"    path=grid(                  "
-			+	"        axes=('x', 'y'),        "
-			+	"        origin=(1, 2),          "
-			+	"        size=(7, 8),            "
-			+	"        step=(0.5, 0.6),        "
-			+	"        roi=[                   "
-			+	"            circ(               "
-			+	"                origin=(4, 4),  "
-			+	"                radius=5        "
-			+	"            ),                  "
-			+	"            rect(               "
-			+	"                origin=(3, 4),  "
-			+	"                size=(3, 3),    "
-			+	"                angle=0.1       "
-			+	"            ),                  "
-			+	"        ]                       "
-			+	"    ),                          "
-			+	"    det=mandelbrot(0.1),        "
-			+	")                               ");
-		pi.exec("sr_minimal =                            "
-			+	"scan_request(                           "
-			+	"    grid(                               "
-			+	"        ('x', 'y'), (1, 2), (7, 8),     "
-			+	"        step=(0.5, 0.6),                "
-			+	"        roi=[                           "
-			+	"            circ((4, 4), 5),            "
-			+	"            rect((3, 4), (3, 3), 0.1),  "
-			+	"        ]                               "
-			+	"    ),                                  "
-			+	"    mandelbrot(0.1),                    "
-			+	")                                       ");
+		pi.exec("sr_full =                     "
+			+	"scan_request(                 "
+			+	"    path=grid(                "
+			+	"        axes=('x', 'y'),      "
+			+	"        origin=(1, 2),        "
+			+	"        size=(7, 8),          "
+			+	"        step=(0.5, 0.6),      "
+			+	"        roi=[                 "
+			+	"            circ(             "
+			+	"                origin=(4, 4),"
+			+	"                radius=5      "
+			+	"            ),                "
+			+	"            rect(             "
+			+	"                origin=(3, 4),"
+			+	"                size=(3, 3),  "
+			+	"                angle=0.1     "
+			+	"            ),                "
+			+	"        ]                     "
+			+	"    ),                        "
+			+	")                             ");
+		pi.exec("sr_minimal =                          "
+			+	"scan_request(                         "
+			+	"    grid(                             "
+			+	"        ('x', 'y'), (1, 2), (7, 8),   "
+			+	"        step=(0.5, 0.6),              "
+			+	"        roi=[                         "
+			+	"            circ((4, 4), 5),          "
+			+	"            rect((3, 4), (3, 3), 0.1),"
+			+	"        ]                             "
+			+	"    ),                                "
+			+	")                                     ");
 
 		@SuppressWarnings("unchecked")
 		ScanRequest<IROI> requestFullKeywords = pi.get("sr_full", ScanRequest.class);
