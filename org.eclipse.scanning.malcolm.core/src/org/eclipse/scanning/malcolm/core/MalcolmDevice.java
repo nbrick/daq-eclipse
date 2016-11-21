@@ -87,6 +87,9 @@ class MalcolmDevice<M extends MalcolmModel> extends AbstractMalcolmDevice<M> {
 	
 	private static String CURRENT_STEP_ENDPOINT = "completedSteps";
 
+	public MalcolmDevice() throws MalcolmDeviceException {
+		super(Services.getConnectorService(), Services.getRunnableDeviceService());
+	}
 
 	public MalcolmDevice(String name,
 			IMalcolmConnectorService<MalcolmMessage> service,
